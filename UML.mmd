@@ -1,0 +1,523 @@
+classDiagram
+    class src_Broker {
+        -storage: Arc~Mutex<Storage>~
+        -topic_offsets: Arc~Mutex<HashMap<String, u64>>~
+        +new() Self
+        +publish(message: src_Message) src_Result~u64~
+        +fetch(topic: &str, from_offset: u64, max_events: usize) src_Result~Vec<Arc<Event>>~
+        +latest_offset(topic: &str) src_Result~u64~
+    }
+    class src_Default {
+        +default() Self
+    }
+    class src_ActivationError {
+        +fmt(f: Formatter~'_~) src_Result
+    }
+    class states_src_Pending {
+    }
+    class states_src_Active {
+    }
+    class states_src_Suspended {
+    }
+    class states_src_Cancelled {
+    }
+    class src_Subscription~S~ {
+        +id: u64
+        +user_id: u64
+        +topic: String
+        +created_at: u64
+        -_state: PhantomData~S~
+        +new(id: u64, user_id: u64, topic: String) Self
+        +activate(self) src_Result~Self::Output, src_ActivationError~
+        +suspend(self, _reason: String) Output
+        +cancel(self, _reason: String) Output
+        +cancel(self, _reason: String) Output
+        +can_deliver_messages() bool
+        +deliver_message(message: &str) src_Result~(), DeliveryError~
+        +can_deliver_messages() bool
+        +deliver_message(_message: &str) src_Result~(), DeliveryError~
+    }
+    class src_Result~T, E~ {
+        +pure(item: Item) Self
+        +bind(self, f: F) B
+    }
+    class src_Vec~T~ {
+        +fold_left(self, init: B, f: F) B
+        +fold_right(self, init: B, f: F) B
+        +filter(self, predicate: F) Self
+    }
+    class src_Option~T~ {
+        +map(self, f: F) Output~B~
+    }
+    class src_SubscriptionManager {
+        -active_subscriptions: src_Vec~Subscription<states::Active>~
+        -suspended_subscriptions: src_Vec~Subscription<states::Suspended>~
+        -cancelled_subscriptions: src_Vec~Subscription<states::Cancelled>~
+        +new() Self
+        +create_subscription(user_id: u64, topic: String) src_Result~u64, src_ActivationError~
+        +suspend_subscription(id: u64, reason: String) src_Result~()~
+        +cancel_subscription(id: u64, reason: String) src_Result~()~
+        +broadcast_message(topic: &str, message: &str) void
+    }
+    class src_Default {
+        +default() Self
+    }
+    class src_RichMessage {
+        +id: u64
+        +topic: String
+        +content: MessageContent
+        +priority: Priority
+        +metadata: HashMap~String, String~
+        +timestamp: u64
+        +route_message() src_ProcessingResult
+    }
+    class src_ProcessedMessage {
+        +original_id: u64
+        +user_id: u64
+        +action: String
+        +topic: String
+        +auth_token: src_Option~String~
+    }
+    class src_DatabaseConfig {
+        +host: String
+        +port: u16
+        +username: String
+        +password: String
+        +max_connections: u32
+        +ssl_enabled: bool
+    }
+    class src_MessagePattern {
+        +matches(text: &str) bool
+    }
+    class src_SubscriptionStats {
+        +total_valid: usize
+        +subscriptions_by_topic: HashMap~String, usize~
+        +recent_count: usize
+    }
+    class src_SubscriptionEvent {
+        +user_id: u64
+        +topic: String
+        +timestamp: u64
+        +subscription_type: SubscriptionType
+        +is_valid() bool
+        +is_subscription() bool
+    }
+    class src_SubscriptionProcessing~I~ {
+    }
+    class src_MessagePipeline~F~ {
+        -filters: src_Vec~F~
+        +default() Self
+        +new() Self
+        +add_filter(self, filter: F) Self
+        +process(messages: src_Vec~src_Message~) src_Vec~src_Message~
+    }
+    class src_EventTransformation~I~ {
+    }
+    class src_BatchIterator~Event~ {
+        -iter: I
+        -batch_size: usize
+        +new(iter: I, batch_size: usize) Self
+        +next() src_Option~Self::Item~
+    }
+    class src_AdvancedPipeline {
+        -operations: src_Vec~MessageBatchOperation~
+        +new() Self
+        +filter(self, predicate: F) Self
+        +map(self, mapper: F) Self
+        +flat_map(self, mapper: F) Self
+        +execute(self, messages: src_Vec~src_Message~) src_Vec~src_Message~
+    }
+    class src_Default {
+        +default() Self
+    }
+    class src_Storage {
+        -topics: HashMap~String, Vec<Arc<Event>>~
+        +new() Self
+        +append(topic: String, event: src_Event) src_Result~()~
+        +fetch(topic: &str, from_offset: u64, max_events: usize) src_Result~Vec<Arc<Event>>~
+        +latest_offset(topic: &str) u64
+    }
+    class src_TopicId {
+        +new(topic: impl AsRef~str~) src_Result~Self~
+        +as_str() &str
+        +into_string(self) String
+        +fmt(f: Formatter~'_~) src_Result
+    }
+    class src_ConsumerId {
+        +new(id: impl AsRef~str~) src_Result~Self~
+        +as_str() &str
+        +fmt(f: Formatter~'_~) src_Result
+    }
+    class src_MessageId {
+        +new(id: u64) Self
+        +value() u64
+        +fmt(f: Formatter~'_~) src_Result
+    }
+    class states_src_Disconnected {
+    }
+    class states_src_Connected {
+    }
+    class states_src_Subscribed {
+    }
+    class states_src_Paused {
+    }
+    class src_ConnectionInfo {
+        +broker_address: String
+        +consumer_group: src_Option~String~
+        +new(broker_address: String, consumer_group: src_Option~String~) Self
+    }
+    class src_Consumer~State~ {
+        -broker: Arc~src_Broker~
+        -topic: src_Option~src_TopicId~
+        -consumer_id: src_ConsumerId
+        -connection_info: src_Option~src_ConnectionInfo~
+        -state: PhantomData~State~
+        +new(consumer_id: src_ConsumerId, broker: Arc~src_Broker~) Self
+        +connect(self, connection_info: src_ConnectionInfo) src_Result~Consumer<states::Connected>, src_SamsaError~
+        +subscribe(self, topic: src_TopicId) src_Result~Consumer<states::Subscribed>, src_SamsaError~
+        +disconnect(self) src_Consumer~states::Disconnected~
+        +receive() src_Option~src_Event~
+        +pause(self) src_Consumer~states::Paused~
+        +unsubscribe(self) src_Consumer~states::Connected~
+        +disconnect(self) src_Consumer~states::Disconnected~
+        +resume(self) src_Consumer~states::Subscribed~
+        +unsubscribe(self) src_Consumer~states::Connected~
+        +disconnect(self) src_Consumer~states::Disconnected~
+        +id() &ConsumerId
+        +topic() src_Option~&TopicId~
+        +is_connected() bool
+    }
+    class src_Message {
+        +topic: String
+        +key: src_Option~String~
+        +value: src_Vec~u8~
+        +timestamp: u64
+        +new(topic: impl Into~String~, key: src_Option~String~, value: impl Into~Vec<u8>~) Self
+        +text(topic: impl Into~String~, text: impl Into~String~) Self
+        +keyed(topic: impl Into~String~, key: impl Into~String~, value: impl Into~Vec<u8>~) Self
+        +as_text() src_Option~&str~
+    }
+    class src_Event {
+        +message: src_Message
+        +offset: u64
+        +new(message: src_Message, offset: u64) Self
+    }
+    class src_Producer {
+        -broker: Arc~src_Broker~
+        +new(broker: Arc~src_Broker~) Self
+        +send(message: src_Message) src_Result~u64~
+        +send_text(topic: &str, text: &str) src_Result~u64~
+        +send_keyed(topic: &str, key: &str, value: &[u8]) src_Result~u64~
+    }
+    class src_BrokerService {
+        -broker: Arc~src_Broker~
+        -connection_pool: src_Option~Arc<ConnectionPool>~
+        -config: src_BrokerConfig
+        +new(config: src_BrokerConfig) src_Result~Self~
+        +validate() src_Result~()~
+        +publish(message: src_Message) src_Result~u64~
+        +metrics_enabled() bool
+        +shutdown(self) src_Result~()~
+    }
+    class src_ServiceManager {
+        -broker_service: src_Option~src_BrokerService~
+        -start_time: Instant
+        +start(config: src_SamsaConfig) src_Result~Self~
+        +uptime() Duration
+        +publish(message: src_Message) src_Result~u64~
+        +stop() src_Result~()~
+    }
+    class src_Drop {
+        +drop() void
+    }
+    class src_ProcessingResult {
+        +offset: u64
+        +processed_at: Instant
+    }
+    class src_SamsaError {
+        +config(msg: impl Into~String~) Self
+        +topic(msg: impl Into~String~) Self
+        +consumer(msg: impl Into~String~) Self
+        +broker(msg: impl Into~String~) Self
+        +resource(msg: impl Into~String~) Self
+        +service(msg: impl Into~String~) Self
+        +schema(msg: impl Into~String~) Self
+        +connection(msg: impl Into~String~) Self
+    }
+    class src_SamsaConfig {
+        +broker_config: src_BrokerConfig
+        +log_level: String
+        +storage_path: String
+        +load() src_Result~Self~
+        +load_from_file(path: P) src_Result~Self~
+        +parse_config(content: &str) src_Result~Self~
+        +validate() src_Result~()~
+    }
+    class src_Default {
+        +default() Self
+        +default() Self
+        +default() Self
+    }
+    class src_BrokerConfig {
+        +port: u16
+        +max_connections: usize
+        +buffer_size: NonZeroUsize
+        +connection_timeout: Duration
+        +enable_metrics: bool
+        +builder() src_BrokerConfigBuilder
+        +validate() src_Result~()~
+    }
+    class src_BrokerConfigBuilder {
+        -port: src_Option~u16~
+        -max_connections: src_Option~usize~
+        -buffer_size: src_Option~NonZeroUsize~
+        -connection_timeout: src_Option~Duration~
+        -enable_metrics: bool
+        +new() Self
+        +port(self, port: u16) src_Result~Self~
+        +max_connections(self, max: usize) src_Result~Self~
+        +buffer_size(self, size: usize) src_Result~Self~
+        +connection_timeout(self, timeout: Duration) Self
+        +enable_metrics(self, enable: bool) Self
+        +build(self) src_BrokerConfig
+    }
+    class src_Connection {
+        -last_used: Instant
+        -is_healthy: bool
+        +new(_id: usize) Self
+        +is_healthy() bool
+        +mark_used() void
+    }
+    class src_ConnectionPool {
+        -connections: Arc~Mutex<VecDeque<Connection>>~
+        -max_connections: usize
+        -next_id: Arc~Mutex<usize>~
+        +new(max_connections: usize) Arc~Self~
+        +acquire() src_Result~src_ConnectionGuard~
+        +return_connection(connection: src_Connection) void
+    }
+    class src_ConnectionGuard {
+        -connection: src_Option~src_Connection~
+        -pool: Arc~src_ConnectionPool~
+        -acquired_at: Instant
+        +connection() src_Option~&Connection~
+        +held_duration() Duration
+    }
+    class src_Drop {
+        +drop() void
+    }
+    class src_TransactionGuard~'a, T~ {
+        -data: &'a mut T
+        -committed: bool
+        -rollback_fn: src_Option~RollbackFn<'a, T>~
+        +begin(data: &'a mut T, rollback_fn: RollbackFn~'a, T~) Self
+        +data_mut() &mut T
+        +commit(self) void
+        +drop() void
+    }
+    class src_TimedLockGuard~'a, T~ {
+        -guard: src_Option~MutexGuard<'a, T>~
+        -acquired_at: Instant
+        +try_acquire(mutex: &'a Mutex~T~, timeout: Duration) src_Result~Self~
+        +held_duration() Duration
+        +deref() Target
+        +deref_mut() Target
+    }
+    class src_TypedMessage~MessageSchema~ {
+        +id: src_MessageId
+        +content: src_Message
+        +schema_type: PhantomData~S~
+        +new(id: src_MessageId, content: src_Message) src_Result~Self~
+        +to_bytes() src_Vec~u8~
+        +schema_id() &'static str
+    }
+    class src_JsonSchema {
+    }
+    class src_MessageSchema {
+        +serialize(message: src_Message) src_Vec~u8~
+        +deserialize(bytes: &[u8]) src_Result~Self::Message~
+        +schema_id() &'static str
+        +validate(message: src_Message) src_Result~()~
+        +serialize(message: src_Message) src_Vec~u8~
+        +deserialize(bytes: &[u8]) src_Result~Self::Message~
+        +schema_id() &'static str
+        +validate(message: src_Message) src_Result~()~
+    }
+    class src_TextSchema {
+    }
+    class src_MessageHandler~MessageSchema~ {
+        -schema_type: PhantomData~S~
+        +default() Self
+        +new() Self
+        +handle(message: &TypedMessage~S~) src_Result~()~
+        +handle_bytes(id: src_MessageId, bytes: &[u8]) src_Result~()~
+    }
+    class src_Consumer {
+        -broker: Arc~src_Broker~
+        -topic: String
+        -offset: u64
+        +new(broker: Arc~src_Broker~, topic: impl Into~String~) Self
+        +from_beginning(broker: Arc~src_Broker~, topic: impl Into~String~) Self
+        +poll() src_Result~Option<Arc<Event>>~
+        +poll_batch(max_events: usize) src_Result~Vec<Arc<Event>>~
+        +current_offset() u64
+        +seek(offset: u64) void
+    }
+    class src_MessageFilter~F~ {
+        -predicate: F
+        -name: String
+        +new(name: String, predicate: F) Self
+        +matches(message: &Message) bool
+        +name() &str
+        +and(self, other: src_MessageFilter~G~) src_MessageFilter~impl Fn(&Message) -> bool~
+        +or(self, other: src_MessageFilter~G~) src_MessageFilter~impl Fn(&Message) -> bool~
+    }
+    class src_MessageRouter {
+        -strategies: src_Vec~RoutingStrategy~
+        -default_targets: src_Vec~String~
+        +new() Self
+        +add_strategy(strategy: F) void
+        +route_message(message: &Message) src_Vec~String~
+    }
+    class src_Default {
+        +default() Self
+    }
+    class src_EventBus~T~ {
+        -handlers: Arc~Mutex<HashMap<String, Vec<EventHandler<T>>>>~
+        +default() Self
+        +new() Self
+        +subscribe(event_type: &str, handler: F) void
+        +publish(event_type: &str, event: &T) void
+        +subscribe_with_filter(event_type: &str, predicate: P, handler: F) void
+    }
+    class src_Pipeline~T~ {
+        -stages: src_Vec~PipelineStage<T>~
+        +default() Self
+        +new() Self
+        +add_stage(self, stage: F) Self
+        +add_transformation(self, transform: F) Self
+        +add_validation(self, validator: F, error_message: String) Self
+        +execute(input: T) src_Result~T, Box<dyn std::error::Error + Send + Sync>~
+    }
+    class src_Cache~K, V, F~ {
+        -cache: Arc~Mutex<HashMap<K, V>>~
+        -loader: F
+        +new(loader: F) Self
+        +get(key: &K) V
+    }
+    class src_RateLimiter~F~ {
+        -predicate: F
+        -last_call: Arc~Mutex<Option<std::time::Instant>>~
+        -interval: Duration
+        +new(predicate: F, interval: Duration) Self
+        +call() void
+    }
+    src_Broker ..> src_Result
+    src_Broker ..> src_Result
+    src_Broker ..> src_Result
+    src_ActivationError ..> src_Result
+    src_Subscription ..> src_Result
+    src_Subscription ..> src_ActivationError
+    src_Subscription ..> src_Result
+    src_Subscription ..> src_Result
+    src_SubscriptionManager --> src_Vec
+    src_SubscriptionManager --> src_Vec
+    src_SubscriptionManager --> src_Vec
+    src_SubscriptionManager ..> src_Result
+    src_SubscriptionManager ..> src_ActivationError
+    src_SubscriptionManager ..> src_Result
+    src_SubscriptionManager ..> src_Result
+    src_RichMessage ..> src_ProcessingResult
+    src_ProcessedMessage --> src_Option
+    src_MessagePipeline --> src_Vec
+    src_MessagePipeline ..> src_Vec
+    src_MessagePipeline ..> src_Message
+    src_BatchIterator ..> src_Option
+    src_AdvancedPipeline --> src_Vec
+    src_AdvancedPipeline ..> src_Vec
+    src_AdvancedPipeline ..> src_Message
+    src_Storage ..> src_Result
+    src_Storage ..> src_Result
+    src_TopicId ..> src_Result
+    src_TopicId ..> src_Result
+    src_ConsumerId ..> src_Result
+    src_ConsumerId ..> src_Result
+    src_MessageId ..> src_Result
+    src_ConnectionInfo --> src_Option
+    src_Consumer --> src_Broker
+    src_Consumer --> src_Option
+    src_Consumer --> src_TopicId
+    src_Consumer --> src_ConsumerId
+    src_Consumer --> src_Option
+    src_Consumer --> src_ConnectionInfo
+    src_Consumer ..> src_Result
+    src_Consumer ..> src_SamsaError
+    src_Consumer ..> src_Result
+    src_Consumer ..> src_SamsaError
+    src_Consumer ..> src_Option
+    src_Consumer ..> src_Event
+    src_Consumer ..> src_Option
+    src_Message --> src_Option
+    src_Message --> src_Vec
+    src_Message ..> src_Option
+    src_Event --> src_Message
+    src_Producer --> src_Broker
+    src_Producer ..> src_Result
+    src_Producer ..> src_Result
+    src_Producer ..> src_Result
+    src_BrokerService --> src_Broker
+    src_BrokerService --> src_Option
+    src_BrokerService --> src_BrokerConfig
+    src_BrokerService ..> src_Result
+    src_BrokerService ..> src_Result
+    src_BrokerService ..> src_Result
+    src_BrokerService ..> src_Result
+    src_ServiceManager --> src_Option
+    src_ServiceManager --> src_BrokerService
+    src_ServiceManager ..> src_Result
+    src_ServiceManager ..> src_Result
+    src_ServiceManager ..> src_Result
+    src_SamsaConfig --> src_BrokerConfig
+    src_SamsaConfig ..> src_Result
+    src_SamsaConfig ..> src_Result
+    src_SamsaConfig ..> src_Result
+    src_SamsaConfig ..> src_Result
+    src_BrokerConfig ..> src_BrokerConfigBuilder
+    src_BrokerConfig ..> src_Result
+    src_BrokerConfigBuilder --> src_Option
+    src_BrokerConfigBuilder --> src_Option
+    src_BrokerConfigBuilder --> src_Option
+    src_BrokerConfigBuilder --> src_Option
+    src_BrokerConfigBuilder ..> src_Result
+    src_BrokerConfigBuilder ..> src_Result
+    src_BrokerConfigBuilder ..> src_Result
+    src_BrokerConfigBuilder ..> src_BrokerConfig
+    src_ConnectionPool ..> src_Result
+    src_ConnectionPool ..> src_ConnectionGuard
+    src_ConnectionGuard --> src_Option
+    src_ConnectionGuard --> src_Connection
+    src_ConnectionGuard --> src_ConnectionPool
+    src_ConnectionGuard ..> src_Option
+    src_TransactionGuard --> src_Option
+    src_TimedLockGuard --> src_Option
+    src_TimedLockGuard ..> src_Result
+    src_TypedMessage --> src_MessageId
+    src_TypedMessage --> src_Message
+    src_TypedMessage ..> src_Result
+    src_TypedMessage ..> src_Vec
+    src_MessageSchema ..> src_Vec
+    src_MessageSchema ..> src_Result
+    src_MessageSchema ..> src_Result
+    src_MessageSchema ..> src_Vec
+    src_MessageSchema ..> src_Result
+    src_MessageSchema ..> src_Result
+    src_MessageHandler ..> src_Result
+    src_MessageHandler ..> src_Result
+    src_Consumer --> src_Broker
+    src_Consumer ..> src_Result
+    src_Consumer ..> src_Result
+    src_MessageRouter --> src_Vec
+    src_MessageRouter --> src_Vec
+    src_MessageRouter ..> src_Vec
+    src_Pipeline --> src_Vec
+    src_Pipeline ..> src_Result
