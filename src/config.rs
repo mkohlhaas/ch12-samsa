@@ -81,6 +81,13 @@ impl SamsaConfig {
                             .map_err(|_| SamsaError::config("Invalid connection_timeout"))?;
                         config.broker_config.connection_timeout = Duration::from_secs(timeout);
                     }
+                    "enable_metrics" => {
+                        let enable = value
+                            .trim()
+                            .parse()
+                            .map_err(|_| SamsaError::config("Invalid enable_metrics"))?;
+                        config.broker_config.enable_metrics = enable;
+                    }
                     "max_connections" => {
                         let max = value
                             .trim()
