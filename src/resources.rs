@@ -171,6 +171,12 @@ type RollbackFn<'a, T> = Box<dyn FnOnce(&mut T) + 'a>;
 pub struct TransactionGuard<'a, T> {
     data: &'a mut T,
     committed: bool,
+    /// Rollback action. Wrapped in `Option` because `rollback_fn` is
+    /// `FnOnce`: it must be consumed exactly once, and `Option::take()`
+    /// is the only way to move it out of `&mut self` in `Drop::drop`,
+    /// leaving `None` so it can't run twice.
+    /// Option::take() is the standard way to move a value out of a struct
+    /// behind &mut self, leaving None in its place after the rollback runs.
     rollback_fn: Option<RollbackFn<'a, T>>,
 }
 
@@ -195,6 +201,7 @@ impl<'a, T> TransactionGuard<'a, T> {
     }
 }
 
+// This is the interesting part!
 impl<'a, T> Drop for TransactionGuard<'a, T> {
     fn drop(&mut self) {
         if !self.committed
