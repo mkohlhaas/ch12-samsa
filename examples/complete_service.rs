@@ -24,10 +24,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = load_configuration()?;
     // println!("{:#?}", config);
     println!("   ✓ Configuration loaded successfully");
-    println!("     - Broker port: {}", config.broker_config.port);
+    println!("     - Broker port: {}", config.broker_config.port());
     println!(
         "     - Max connections: {}",
-        config.broker_config.max_connections
+        config.broker_config.max_connections()
     );
     println!();
 
@@ -76,11 +76,11 @@ fn load_configuration() -> Result<SamsaConfig, Box<dyn std::error::Error>> {
 
             // Build custom configuration using builder pattern
             let broker_config = BrokerConfigBuilder::new()
-                .port(8080)?
-                .max_connections(100)?
-                .buffer_size(4096)?
+                .port(8080)
+                .max_connections(100)
+                .buffer_size(4096)
                 .enable_metrics(true)
-                .build();
+                .build()?;
 
             Ok(SamsaConfig {
                 broker_config,
@@ -140,7 +140,7 @@ fn demonstrate_error_handling() -> Result<(), Box<dyn std::error::Error>> {
     let config = SamsaConfig::load()?;
 
     // Pattern: Option to Result conversion
-    let _port = Some(config.broker_config.port)
+    let _port = Some(config.broker_config.port())
         .filter(|&p| p > 1024)
         .ok_or("Invalid port")?;
 
@@ -172,9 +172,9 @@ fn demonstrate_block_expressions() {
     // Pattern: Complex initialization in block
     let _config = {
         let mut builder = BrokerConfigBuilder::new();
-        builder = builder.port(9000).unwrap();
-        builder = builder.max_connections(50).unwrap();
-        builder.build()
+        builder = builder.port(9000);
+        builder = builder.max_connections(50);
+        builder.build().unwrap()
     };
 }
 

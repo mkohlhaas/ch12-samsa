@@ -31,8 +31,8 @@ impl BrokerService {
 
         // Block expression for optional connection pool
         let connection_pool = {
-            if config.max_connections > 0 {
-                Some(ConnectionPool::new(config.max_connections))
+            if config.max_connections() > 0 {
+                Some(ConnectionPool::new(config.max_connections()))
             } else {
                 None
             }
@@ -51,7 +51,7 @@ impl BrokerService {
 
     /// Validate service state
     fn validate(&self) -> Result<()> {
-        if self.config.port == 0 {
+        if self.config.port() == 0 {
             return Err(SamsaError::service("Port cannot be zero"));
         }
         Ok(())
@@ -64,7 +64,7 @@ impl BrokerService {
 
     /// Get service metrics (if enabled)
     pub fn metrics_enabled(&self) -> bool {
-        self.config.enable_metrics
+        self.config.enable_metrics()
     }
 
     /// Graceful shutdown
@@ -174,10 +174,9 @@ mod tests {
     fn test_service_creation() {
         let config = BrokerConfigBuilder::new()
             .port(9000)
-            .unwrap()
             .max_connections(10)
-            .unwrap()
-            .build();
+            .build()
+            .unwrap();
 
         let service = BrokerService::new(config).unwrap();
         assert!(service.validate().is_ok());

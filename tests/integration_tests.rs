@@ -121,24 +121,23 @@ fn test_multiple_consumers_independent_positions() {
 fn test_configuration_loading_and_validation() {
     // Test default configuration
     let config = SamsaConfig::default();
-    assert_eq!(config.broker_config.port, 8080);
-    assert_eq!(config.broker_config.max_connections, 1000);
+    assert_eq!(config.broker_config.port(), 8080);
+    assert_eq!(config.broker_config.max_connections(), 1000);
 
     // Test builder pattern with validation
     let result = BrokerConfigBuilder::new()
         .port(9000)
-        .unwrap()
         .max_connections(500)
-        .unwrap()
         .enable_metrics(true)
-        .build();
+        .build()
+        .unwrap();
 
-    assert_eq!(result.port, 9000);
-    assert_eq!(result.max_connections, 500);
-    assert!(result.enable_metrics);
+    assert_eq!(result.port(), 9000);
+    assert_eq!(result.max_connections(), 500);
+    assert!(result.enable_metrics());
 
-    // Test invalid port validation
-    let invalid = BrokerConfigBuilder::new().port(80);
+    // Test invalid port validation at build time
+    let invalid = BrokerConfigBuilder::new().port(80).build();
     assert!(invalid.is_err());
 }
 
@@ -167,7 +166,7 @@ fn test_service_lifecycle() {
 
 #[test]
 fn test_broker_service_creation() {
-    let config = BrokerConfig::default();
+    let config = BrokerConfig::builder().build().unwrap();
     let service = BrokerService::new(config).unwrap();
 
     // Service should accept messages

@@ -46,6 +46,13 @@ impl SamsaConfig {
 
     /// Parse configuration from text content
     fn parse_config(content: &str) -> Result<Self> {
+        // Collect broker settings, then create via the builder
+        let mut port: Option<u16> = None;
+        let mut max_connections: Option<usize> = None;
+        let mut buffer_size: Option<usize> = None;
+        let mut connection_timeout: Option<Duration> = None;
+        let mut enable_metrics: Option<bool> = None;
+
         let mut config = Self::default();
 
         for line in content.lines() {
@@ -60,40 +67,43 @@ impl SamsaConfig {
                 match key.trim() {
                     // Broker Config
                     "broker_port" => {
-                        let port = value
-                            .trim()
-                            .parse()
-                            .map_err(|_| SamsaError::config("Invalid port"))?;
-                        config.broker_config.port = port;
+                        port = Some(
+                            value
+                                .trim()
+                                .parse()
+                                .map_err(|_| SamsaError::config("Invalid port"))?,
+                        )
                     }
                     "buffer_size" => {
-                        let size = value
-                            .trim()
-                            .parse()
-                            .map_err(|_| SamsaError::config("Invalid buffer_size"))?;
-                        config.broker_config.buffer_size = NonZeroUsize::new(size)
-                            .ok_or_else(|| SamsaError::config("buffer_size must be positive"))?;
+                        buffer_size = Some(
+                            value
+                                .trim()
+                                .parse()
+                                .map_err(|_| SamsaError::config("Invalid buffer_size"))?,
+                        )
                     }
                     "connection_timeout" => {
                         let timeout: u64 = value
                             .trim()
                             .parse()
                             .map_err(|_| SamsaError::config("Invalid connection_timeout"))?;
-                        config.broker_config.connection_timeout = Duration::from_secs(timeout);
+                        connection_timeout = Some(Duration::from_secs(timeout));
                     }
                     "enable_metrics" => {
-                        let enable = value
-                            .trim()
-                            .parse()
-                            .map_err(|_| SamsaError::config("Invalid enable_metrics"))?;
-                        config.broker_config.enable_metrics = enable;
+                        enable_metrics = Some(
+                            value
+                                .trim()
+                                .parse()
+                                .map_err(|_| SamsaError::config("Invalid enable_metrics"))?,
+                        )
                     }
                     "max_connections" => {
-                        let max = value
-                            .trim()
-                            .parse()
-                            .map_err(|_| SamsaError::config("Invalid max_connections"))?;
-                        config.broker_config.max_connections = max;
+                        max_connections = Some(
+                            value
+                                .trim()
+                                .parse()
+                                .map_err(|_| SamsaError::config("Invalid max_connections"))?,
+                        )
                     }
                     // Log Level
                     "log_level" => {
@@ -108,16 +118,32 @@ impl SamsaConfig {
             }
         }
 
+        let mut broker_builder = BrokerConfigBuilder::new();
+        if let Some(port) = port {
+            broker_builder = broker_builder.port(port);
+        }
+        if let Some(max) = max_connections {
+            broker_builder = broker_builder.max_connections(max);
+        }
+        if let Some(size) = buffer_size {
+            broker_builder = broker_builder.buffer_size(size);
+        }
+        if let Some(timeout) = connection_timeout {
+            broker_builder = broker_builder.connection_timeout(timeout);
+        }
+        if let Some(enable) = enable_metrics {
+            broker_builder = broker_builder.enable_metrics(enable);
+        }
+        config.broker_config = broker_builder.build()?;
+
         config.validate()?;
         Ok(config)
     }
 
     /// Validate configuration
     fn validate(&self) -> Result<()> {
-        // validate broker config
-        self.broker_config.validate()?;
-
-        // validate log level
+        // BrokerConfig is always valid because it can only be created
+        // through BrokerConfigBuilder::build(), which validates it.
         if self.log_level.is_empty() {
             return Err(SamsaError::config("log_level cannot be empty"));
         }
@@ -129,7 +155,9 @@ impl SamsaConfig {
 impl Default for SamsaConfig {
     fn default() -> Self {
         Self {
-            broker_config: BrokerConfig::default(),
+            broker_config: BrokerConfig::builder()
+                .build()
+                .expect("default broker config is valid"),
             log_level: "info".to_string(),
             storage_path: "memory://".to_string(),
         }
@@ -141,13 +169,16 @@ impl Default for SamsaConfig {
 // =============  //
 
 /// Broker-specific configuration
+///
+/// A `BrokerConfig` can only be created through [BrokerConfigBuilder],
+/// which validates the configuration before a value comes into existence.
 #[derive(Debug, Clone)]
 pub struct BrokerConfig {
-    pub buffer_size: NonZeroUsize,
-    pub connection_timeout: Duration,
-    pub enable_metrics: bool,
-    pub max_connections: usize,
-    pub port: u16,
+    buffer_size: NonZeroUsize,
+    connection_timeout: Duration,
+    enable_metrics: bool,
+    max_connections: usize,
+    port: u16,
 }
 
 impl BrokerConfig {
@@ -156,35 +187,29 @@ impl BrokerConfig {
         BrokerConfigBuilder::new()
     }
 
-    /// Validate broker configuration
-    pub fn validate(&self) -> Result<()> {
-        if self.port == 0 {
-            return Err(SamsaError::config("Port cannot be zero"));
-        }
-
-        if self.port < 1024 {
-            return Err(SamsaError::config(
-                "Port cannot be in reserved range (0-1023)",
-            ));
-        }
-
-        if self.max_connections == 0 {
-            return Err(SamsaError::config("Max connections must be positive"));
-        }
-
-        Ok(())
+    /// Buffer size for the broker
+    pub fn buffer_size(&self) -> NonZeroUsize {
+        self.buffer_size
     }
-}
 
-impl Default for BrokerConfig {
-    fn default() -> Self {
-        Self {
-            port: 8080,
-            max_connections: 1000,
-            buffer_size: NonZeroUsize::new(4096).unwrap(),
-            connection_timeout: Duration::from_secs(30),
-            enable_metrics: false,
-        }
+    /// Connection timeout for the broker
+    pub fn connection_timeout(&self) -> Duration {
+        self.connection_timeout
+    }
+
+    /// Whether metrics are enabled
+    pub fn enable_metrics(&self) -> bool {
+        self.enable_metrics
+    }
+
+    /// Maximum number of connections
+    pub fn max_connections(&self) -> usize {
+        self.max_connections
+    }
+
+    /// Port the broker listens on
+    pub fn port(&self) -> u16 {
+        self.port
     }
 }
 
@@ -192,12 +217,17 @@ impl Default for BrokerConfig {
 // Broker Config Builder //
 // ===================== //
 
-/// Builder for BrokerConfig demonstrating builder pattern with validation
+/// Builder for BrokerConfig demonstrating the builder pattern with validation
+///
+/// Configurations are validated in `build()` so an invalid `BrokerConfig`
+/// can never be created.
+///
+/// Enforcement of "builder-only" creation!
 #[derive(Default)]
 pub struct BrokerConfigBuilder {
     port: Option<u16>,
     max_connections: Option<usize>,
-    buffer_size: Option<NonZeroUsize>,
+    buffer_size: Option<usize>,
     connection_timeout: Option<Duration>,
     enable_metrics: bool,
 }
@@ -207,28 +237,19 @@ impl BrokerConfigBuilder {
         Self::default()
     }
 
-    pub fn port(mut self, port: u16) -> Result<Self> {
-        if port < 1024 {
-            return Err(SamsaError::config("Port cannot be in reserved range"));
-        }
+    pub fn port(mut self, port: u16) -> Self {
         self.port = Some(port);
-        Ok(self)
+        self
     }
 
-    pub fn max_connections(mut self, max: usize) -> Result<Self> {
-        if max == 0 {
-            return Err(SamsaError::config("Max connections must be positive"));
-        }
+    pub fn max_connections(mut self, max: usize) -> Self {
         self.max_connections = Some(max);
-        Ok(self)
+        self
     }
 
-    pub fn buffer_size(mut self, size: usize) -> Result<Self> {
-        self.buffer_size = Some(
-            NonZeroUsize::new(size)
-                .ok_or_else(|| SamsaError::config("Buffer size must be positive"))?,
-        );
-        Ok(self)
+    pub fn buffer_size(mut self, size: usize) -> Self {
+        self.buffer_size = Some(size);
+        self
     }
 
     pub fn connection_timeout(mut self, timeout: Duration) -> Self {
@@ -241,16 +262,36 @@ impl BrokerConfigBuilder {
         self
     }
 
-    pub fn build(self) -> BrokerConfig {
-        BrokerConfig {
+    /// Build the config, validating all fields
+    pub fn build(self) -> Result<BrokerConfig> {
+        let buffer_size = NonZeroUsize::new(self.buffer_size.unwrap_or(4096))
+            .ok_or_else(|| SamsaError::config("Buffer size must be positive"))?;
+
+        let config = BrokerConfig {
             port: self.port.unwrap_or(8080),
             max_connections: self.max_connections.unwrap_or(1000),
-            buffer_size: self
-                .buffer_size
-                .unwrap_or_else(|| NonZeroUsize::new(4096).unwrap()),
+            buffer_size,
             connection_timeout: self.connection_timeout.unwrap_or(Duration::from_secs(30)),
             enable_metrics: self.enable_metrics,
+        };
+
+        // Validation
+
+        if config.port == 0 {
+            return Err(SamsaError::config("Port cannot be zero"));
         }
+
+        if config.port < 1024 {
+            return Err(SamsaError::config(
+                "Port cannot be in reserved range (0-1023)",
+            ));
+        }
+
+        if config.max_connections == 0 {
+            return Err(SamsaError::config("Max connections must be positive"));
+        }
+
+        Ok(config)
     }
 }
 
@@ -261,45 +302,50 @@ mod tests {
     #[test]
     fn test_default_config() {
         let config = SamsaConfig::default();
-        assert_eq!(config.broker_config.port, 8080);
-        assert_eq!(config.broker_config.max_connections, 1000);
+        assert_eq!(config.broker_config.port(), 8080);
+        assert_eq!(config.broker_config.max_connections(), 1000);
     }
 
     #[test]
     fn test_config_builder() {
         let config = BrokerConfig::builder()
             .port(9000)
-            .unwrap()
             .max_connections(500)
-            .unwrap()
             .enable_metrics(true)
-            .build();
+            .build()
+            .unwrap();
 
-        assert_eq!(config.port, 9000);
-        assert_eq!(config.max_connections, 500);
-        assert!(config.enable_metrics);
+        assert_eq!(config.port(), 9000);
+        assert_eq!(config.max_connections(), 500);
+        assert!(config.enable_metrics());
     }
 
     #[test]
     fn test_validation() {
-        let mut config = BrokerConfig::default();
-        assert!(config.validate().is_ok());
+        // Validation happens at build time; invalid values are rejected
+        let result = BrokerConfig::builder().port(0).build();
+        assert!(result.is_err());
 
-        config.port = 0;
-        assert!(config.validate().is_err());
+        let result = BrokerConfig::builder().port(500).build(); // Reserved range
+        assert!(result.is_err());
 
-        config.port = 500; // Reserved range
-        assert!(config.validate().is_err());
+        // Valid configuration succeeds
+        let result = BrokerConfig::builder().port(8080).build();
+        assert!(result.is_ok());
     }
 
     #[test]
     fn test_builder_validation() {
-        // Attempting to set a reserved port should fail
-        let result = BrokerConfigBuilder::new().port(80);
+        // A valid port builds successfully
+        let valid = BrokerConfigBuilder::new().port(8080).build();
+        assert!(valid.is_ok());
+
+        // A reserved port fails at build time
+        let result = BrokerConfigBuilder::new().port(80).build();
         assert!(result.is_err());
 
-        // Valid port should succeed
-        let result = BrokerConfigBuilder::new().port(8080);
-        assert!(result.is_ok());
+        // Zero max connections fails at build time
+        let result = BrokerConfigBuilder::new().max_connections(0).build();
+        assert!(result.is_err());
     }
 }
