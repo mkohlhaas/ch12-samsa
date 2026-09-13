@@ -12,29 +12,37 @@ use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
+// ========== //
+// Connection //
+// ========== //
+
 /// A connection to the broker (placeholder for actual connection)
 #[derive(Debug)]
 pub struct Connection {
     last_used: Instant,
-    is_healthy: bool,
 }
 
 impl Connection {
+    const STALE_AFTER_MINUTES: u64 = 5;
+
     fn new(_id: usize) -> Self {
         Self {
             last_used: Instant::now(),
-            is_healthy: true,
         }
     }
 
     pub fn is_healthy(&self) -> bool {
-        self.is_healthy && self.last_used.elapsed() < Duration::from_secs(300)
+        self.last_used.elapsed() < Duration::from_secs(Self::STALE_AFTER_MINUTES * 60)
     }
 
-    fn mark_used(&mut self) {
+    fn touch(&mut self) {
         self.last_used = Instant::now();
     }
 }
+
+// ============== //
+// ConnectionPool //
+// ============== //
 
 /// Connection pool with automatic resource management
 pub struct ConnectionPool {
@@ -54,7 +62,7 @@ impl ConnectionPool {
 
     /// Acquire a connection from the pool
     ///
-    /// Returns a ConnectionGuard that automatically returns the connection
+    /// Returns a ConnectionGuard that automatically releases the connection
     /// to the pool when dropped (RAII pattern)
     pub fn acquire(self: &Arc<Self>) -> Result<ConnectionGuard> {
         let mut connections = self
@@ -66,7 +74,7 @@ impl ConnectionPool {
         if let Some(mut conn) = connections.pop_front()
             && conn.is_healthy()
         {
-            conn.mark_used();
+            conn.touch();
             return Ok(ConnectionGuard {
                 connection: Some(conn),
                 pool: self.clone(),
@@ -95,7 +103,7 @@ impl ConnectionPool {
     }
 
     /// Return a connection to the pool
-    fn return_connection(&self, connection: Connection) {
+    fn release_connection(&self, connection: Connection) {
         if let Ok(mut connections) = self.connections.lock()
             && connection.is_healthy()
             && connections.len() < self.max_connections
@@ -105,10 +113,14 @@ impl ConnectionPool {
     }
 }
 
-/// RAII guard for automatic connection return
+// =============== //
+// ConnectionGuard //
+// =============== //
+
+/// RAII guard for automatic connection release (giving back the Connection to the ConnectionPool)
 ///
 /// Demonstrates the RAII pattern: the connection is automatically
-/// returned to the pool when this guard is dropped
+/// released to the pool when this guard is dropped
 pub struct ConnectionGuard {
     connection: Option<Connection>,
     pool: Arc<ConnectionPool>,
@@ -127,6 +139,7 @@ impl ConnectionGuard {
     }
 }
 
+// This is the interesting part!
 impl Drop for ConnectionGuard {
     fn drop(&mut self) {
         if let Some(connection) = self.connection.take() {
@@ -138,16 +151,21 @@ impl Drop for ConnectionGuard {
 
             // Return connection to pool if it's still healthy
             if connection.is_healthy() {
-                self.pool.return_connection(connection);
+                self.pool.release_connection(connection);
             }
         }
     }
 }
 
+// ================ //
+// TransactionGuard //
+// ================ //
+
 /// Transaction guard ensuring data consistency
 ///
 /// Demonstrates RAII for transactions: automatically rolls back
 /// if commit() is not called before drop
+
 type RollbackFn<'a, T> = Box<dyn FnOnce(&mut T) + 'a>;
 
 pub struct TransactionGuard<'a, T> {
@@ -186,6 +204,10 @@ impl<'a, T> Drop for TransactionGuard<'a, T> {
         }
     }
 }
+
+// ============== //
+// TimedLockGuard //
+// ============== //
 
 /// Scoped lock guard with timeout
 ///

@@ -47,13 +47,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     publish_messages(&service_manager)?;
     println!();
 
+    // PATTERN: Block expressions (Ch 10)
+    println!("5. Demonstrating Block Expressions...");
+    demonstrate_block_expressions();
+    println!();
+
+    // PATTERN: Error handling (Ch 11)
+    println!("6. Demonstrating Error Handling...");
+    demonstrate_error_handling()?;
+    println!();
+
+    // PATTERN: Transaction guards (Ch 12)
+    println!("7. Demonstrating Transactions...");
+    demonstrate_transactions();
+    println!();
+
     // PATTERN: Service metrics and monitoring
-    println!("5. Service Status:");
+    println!("8. Service Status:");
     println!("   - Uptime: {:?}", service_manager.uptime());
     println!();
 
     // PATTERN: Graceful shutdown (Ch 12)
-    println!("6. Shutting Down...");
+    println!("9. Shutting Down...");
     service_manager.stop()?;
     println!("   ✓ Service stopped gracefully");
     println!();
@@ -130,9 +145,8 @@ fn publish_messages(manager: &ServiceManager) -> Result<(), Box<dyn std::error::
 
 /// Demonstrate error handling patterns
 ///
-/// This function shows various error handling techniques but is not called from main.
-/// It's included to demonstrate patterns readers can apply in their own code.
-#[allow(dead_code)]
+/// This function shows various error handling techniques and is called
+/// from main to demonstrate patterns readers can apply in their own code.
 fn demonstrate_error_handling() -> Result<(), Box<dyn std::error::Error>> {
     println!("Error Handling Patterns:");
 
@@ -153,9 +167,8 @@ fn demonstrate_error_handling() -> Result<(), Box<dyn std::error::Error>> {
 
 /// Demonstrate block expression patterns
 ///
-/// This function shows idiomatic Rust block expressions but is not called from main.
-/// It's included to demonstrate patterns readers can apply in their own code.
-#[allow(dead_code)]
+/// This function shows idiomatic Rust block expressions and is called
+/// from main to demonstrate patterns readers can apply in their own code.
 fn demonstrate_block_expressions() {
     // Pattern: Conditional initialization
     let storage_type = {
@@ -180,9 +193,8 @@ fn demonstrate_block_expressions() {
 
 /// Demonstrate transaction guard pattern
 ///
-/// This function shows RAII-based transaction handling but is not called from main.
-/// It's included to demonstrate patterns readers can apply in their own code.
-#[allow(dead_code)]
+/// This function shows RAII-based transaction handling and is called
+/// from main to demonstrate patterns readers can apply in their own code.
 fn demonstrate_transactions() {
     use samsa::resources::TransactionGuard;
 
