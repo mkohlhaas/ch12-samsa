@@ -11,6 +11,10 @@ use std::num::NonZeroUsize;
 use std::path::Path;
 use std::time::Duration;
 
+// ============ //
+// Samsa Config //
+// ============ //
+
 /// Complete Samsa service configuration
 #[derive(Debug, Clone)]
 pub struct SamsaConfig {
@@ -46,31 +50,21 @@ impl SamsaConfig {
 
         for line in content.lines() {
             let line = line.trim();
+
+            // skip empty lines and comments
             if line.is_empty() || line.starts_with('#') {
                 continue;
             }
 
             if let Some((key, value)) = line.split_once('=') {
                 match key.trim() {
+                    // Broker Config
                     "broker_port" => {
                         let port = value
                             .trim()
                             .parse()
                             .map_err(|_| SamsaError::config("Invalid port"))?;
                         config.broker_config.port = port;
-                    }
-                    "max_connections" => {
-                        let max = value
-                            .trim()
-                            .parse()
-                            .map_err(|_| SamsaError::config("Invalid max_connections"))?;
-                        config.broker_config.max_connections = max;
-                    }
-                    "log_level" => {
-                        config.log_level = value.trim().to_string();
-                    }
-                    "storage_path" => {
-                        config.storage_path = value.trim().to_string();
                     }
                     "buffer_size" => {
                         let size = value
@@ -87,6 +81,21 @@ impl SamsaConfig {
                             .map_err(|_| SamsaError::config("Invalid connection_timeout"))?;
                         config.broker_config.connection_timeout = Duration::from_secs(timeout);
                     }
+                    "max_connections" => {
+                        let max = value
+                            .trim()
+                            .parse()
+                            .map_err(|_| SamsaError::config("Invalid max_connections"))?;
+                        config.broker_config.max_connections = max;
+                    }
+                    // Log Level
+                    "log_level" => {
+                        config.log_level = value.trim().to_string();
+                    }
+                    // Storage Path
+                    "storage_path" => {
+                        config.storage_path = value.trim().to_string();
+                    }
                     _ => {} // Ignore unknown keys
                 }
             }
@@ -98,8 +107,10 @@ impl SamsaConfig {
 
     /// Validate configuration
     fn validate(&self) -> Result<()> {
+        // validate broker config
         self.broker_config.validate()?;
 
+        // validate log level
         if self.log_level.is_empty() {
             return Err(SamsaError::config("log_level cannot be empty"));
         }
@@ -118,14 +129,18 @@ impl Default for SamsaConfig {
     }
 }
 
+// =============  //
+// Broker Config  //
+// =============  //
+
 /// Broker-specific configuration
 #[derive(Debug, Clone)]
 pub struct BrokerConfig {
-    pub port: u16,
-    pub max_connections: usize,
     pub buffer_size: NonZeroUsize,
     pub connection_timeout: Duration,
     pub enable_metrics: bool,
+    pub max_connections: usize,
+    pub port: u16,
 }
 
 impl BrokerConfig {
@@ -165,6 +180,10 @@ impl Default for BrokerConfig {
         }
     }
 }
+
+// ===================== //
+// Broker Config Builder //
+// ===================== //
 
 /// Builder for BrokerConfig demonstrating builder pattern with validation
 #[derive(Default)]
