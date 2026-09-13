@@ -62,13 +62,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     demonstrate_transactions();
     println!();
 
+    // PATTERN: Timed locks (Ch 12)
+    println!("8. Demonstrating Timed Locks...");
+    demonstrate_timed_lock()?;
+    println!();
+
     // PATTERN: Service metrics and monitoring
-    println!("8. Service Status:");
+    println!("9. Service Status:");
     println!("   - Uptime: {:?}", service_manager.uptime());
     println!();
 
     // PATTERN: Graceful shutdown (Ch 12)
-    println!("9. Shutting Down...");
+    println!("10. Shutting Down...");
     service_manager.stop()?;
     println!("   ✓ Service stopped gracefully");
     println!();
@@ -219,4 +224,28 @@ fn demonstrate_transactions() {
 
     assert_eq!(data, vec![1, 2, 3, 4, 5]);
     println!("Transaction committed: {:?}", data);
+}
+
+/// Demonstrate timed lock guard pattern
+///
+/// This function shows RAII with lock acquisition timeout and is
+/// called from main to demonstrate patterns readers can apply in
+/// their own code.
+fn demonstrate_timed_lock() -> Result<(), Box<dyn std::error::Error>> {
+    use samsa::resources::TimedLockGuard;
+    use std::time::Duration;
+
+    let counter = std::sync::Mutex::new(0);
+
+    {
+        // Try to acquire lock with a 100ms timeout
+        let mut guard = TimedLockGuard::try_acquire(&counter, Duration::from_millis(100))?;
+        *guard += 1;
+        println!("   ✓ Acquired lock, counter = {}", *guard);
+        println!("   ✓ Lock held for {:?}", guard.held_duration());
+        // Lock automatically released when guard drops
+    }
+
+    println!("   ✓ Lock released (RAII)");
+    Ok(())
 }
