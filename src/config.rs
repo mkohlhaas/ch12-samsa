@@ -167,6 +167,7 @@ impl Default for BrokerConfig {
 }
 
 /// Builder for BrokerConfig demonstrating builder pattern with validation
+#[derive(Default)]
 pub struct BrokerConfigBuilder {
     port: Option<u16>,
     max_connections: Option<usize>,
@@ -177,13 +178,7 @@ pub struct BrokerConfigBuilder {
 
 impl BrokerConfigBuilder {
     pub fn new() -> Self {
-        Self {
-            port: None,
-            max_connections: None,
-            buffer_size: None,
-            connection_timeout: None,
-            enable_metrics: false,
-        }
+        Self::default()
     }
 
     pub fn port(mut self, port: u16) -> Result<Self> {
@@ -230,12 +225,6 @@ impl BrokerConfigBuilder {
             connection_timeout: self.connection_timeout.unwrap_or(Duration::from_secs(30)),
             enable_metrics: self.enable_metrics,
         }
-    }
-}
-
-impl Default for BrokerConfigBuilder {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
