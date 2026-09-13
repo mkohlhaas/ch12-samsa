@@ -237,9 +237,11 @@ impl<'a, T> TimedLockGuard<'a, T> {
                         acquired_at: Instant::now(),
                     });
                 }
+                // try again after 1ms
                 Err(_) if start.elapsed() < timeout => {
                     std::thread::sleep(Duration::from_millis(1));
                 }
+                // give up
                 Err(_) => return Err(SamsaError::resource("Lock acquisition timeout")),
             }
         }
