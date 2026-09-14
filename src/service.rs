@@ -11,7 +11,7 @@ use crate::error::{Result, SamsaError};
 use crate::resources::ConnectionPool;
 use crate::{Broker, Message};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 // ============= //
 // BrokerService //
@@ -55,7 +55,12 @@ impl BrokerService {
 
     /// Graceful shutdown
     pub fn shutdown(self) -> Result<()> {
-        // Explicit drop order for clean shutdown
+        // Explicit drop order for clean shutdown.
+        // Note: the order does not matter here: both fields are `Arc`s (drop only
+        // decrements a reference count) and they have no interdependency, so either
+        // order is equivalent. Order would only be significant if one resource
+        // depended on another. The remaining `config` field is dropped last, at the
+        // end of this scope.
         drop(self.connection_pool);
         drop(self.broker);
         Ok(())
@@ -68,8 +73,11 @@ impl BrokerService {
 
 /// Service manager with cascading cleanup
 pub struct ServiceManager {
+    // Running-state flag: `Some` while running, `None` after `stop()`. Uses
+    // `Option` so the service can be moved out via `take()` through `&mut self`,
+    // enabling once-only, idempotent cleanup on shutdown and drop.
     broker_service: Option<BrokerService>,
-    start_time: std::time::Instant,
+    start_time: Instant,
 }
 
 impl ServiceManager {
@@ -83,7 +91,7 @@ impl ServiceManager {
 
         Ok(Self {
             broker_service,
-            start_time: std::time::Instant::now(),
+            start_time: Instant::now(),
         })
     }
 
@@ -120,7 +128,6 @@ impl Drop for ServiceManager {
 }
 
 /// Request processing pipeline demonstrating block expressions
-/// Not used
 pub fn process_request(
     message: Message,
     service: &BrokerService,
@@ -147,7 +154,7 @@ pub fn process_request(
 
     Ok(RequestProcessingResult {
         offset,
-        processed_at: std::time::Instant::now(),
+        processed_at: Instant::now(),
     })
 }
 
@@ -159,7 +166,7 @@ pub fn process_request(
 #[derive(Debug)]
 pub struct RequestProcessingResult {
     pub offset: u64,
-    pub processed_at: std::time::Instant,
+    pub processed_at: Instant,
 }
 
 #[cfg(test)]
