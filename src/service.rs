@@ -20,45 +20,27 @@ use std::time::Duration;
 /// Complete broker service with managed lifecycle
 pub struct BrokerService {
     broker: Arc<Broker>,
-    connection_pool: Option<Arc<ConnectionPool>>,
+    connection_pool: Arc<ConnectionPool>,
     config: BrokerConfig,
 }
 
 impl BrokerService {
     /// Create a new broker service using block expressions for initialization
-    pub fn new(config: BrokerConfig) -> Result<Self> {
+    pub fn new(config: BrokerConfig) -> Self {
         // Block expression for conditional storage initialization
         let broker = {
             let broker = Broker::new();
             Arc::new(broker)
         };
 
-        // Block expression for optional connection pool
-        let connection_pool = {
-            if config.max_connections() > 0 {
-                Some(ConnectionPool::new(config.max_connections()))
-            } else {
-                None
-            }
-        };
+        // Connection pool for the broker
+        let connection_pool = ConnectionPool::new(config.max_connections());
 
-        // Validate the service is ready
-        let service = Self {
+        Self {
             broker,
             connection_pool,
             config,
-        };
-
-        service.validate()?;
-        Ok(service)
-    }
-
-    /// Validate service state
-    fn validate(&self) -> Result<()> {
-        if self.config.port() == 0 {
-            return Err(SamsaError::service("Port cannot be zero"));
         }
-        Ok(())
     }
 
     /// Publish a message through the service
@@ -95,7 +77,7 @@ impl ServiceManager {
     pub fn start(config: SamsaConfig) -> Result<Self> {
         // Block expression for service initialization
         let broker_service = {
-            let service = BrokerService::new(config.broker_config)?;
+            let service = BrokerService::new(config.broker_config);
             Some(service)
         };
 
@@ -193,8 +175,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let service = BrokerService::new(config).unwrap();
-        assert!(service.validate().is_ok());
+        let _service = BrokerService::new(config);
     }
 
     #[test]

@@ -167,7 +167,7 @@ fn test_service_lifecycle() {
 #[test]
 fn test_broker_service_creation() {
     let config = BrokerConfig::builder().build().unwrap();
-    let service = BrokerService::new(config).unwrap();
+    let service = BrokerService::new(config);
 
     // Service should accept messages
     let message = Message::text("test.topic", "Test message");

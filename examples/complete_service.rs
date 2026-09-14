@@ -157,7 +157,7 @@ fn publish_messages(manager: &ServiceManager) -> Result<(), Box<dyn std::error::
 
 /// Process messages through the request pipeline
 fn process_requests() -> Result<(), Box<dyn std::error::Error>> {
-    let service = BrokerService::new(BrokerConfigBuilder::new().port(8080).build()?)?;
+    let service = BrokerService::new(BrokerConfigBuilder::new().port(8080).build()?);
 
     let requests = vec![
         ("user.events", "Process request #1"),
@@ -194,8 +194,10 @@ fn demonstrate_error_handling() -> Result<(), Box<dyn std::error::Error>> {
         .ok_or("Invalid port")?;
 
     // Pattern: Error context with map_err
-    let _service = BrokerService::new(config.broker_config)
-        .map_err(|e| format!("Failed to start service: {}", e))?;
+    let _cfg = BrokerConfigBuilder::new()
+        .port(config.broker_config.port())
+        .build()
+        .map_err(|e| format!("Failed to build broker config: {}", e))?;
 
     Ok(())
 }
