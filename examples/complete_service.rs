@@ -9,11 +9,13 @@
 
 use samsa::{
     BrokerConfigBuilder,
-    BrokerService,  // Service management (Ch 12)
+    BrokerService, // Service management (Ch 12)
     ConnectionPool, // Resources (Ch 12)
-    Message,        // Core types (Ch 9)
-    SamsaConfig,    // Configuration (Ch 12)
+    Message, // Core types (Ch 9)
+    RequestProcessingResult, // Request pipeline (Ch 12)
+    SamsaConfig, // Configuration (Ch 12)
     ServiceManager,
+    process_request,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -45,6 +47,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // PATTERN: Publishing messages (Ch 9)
     println!("4. Publishing Messages...");
     publish_messages(&service_manager)?;
+    println!();
+
+    // PATTERN: Request processing pipeline (Ch 12)
+    println!("4b. Processing Requests...");
+    process_requests()?;
     println!();
 
     // PATTERN: Block expressions (Ch 10)
@@ -144,6 +151,29 @@ fn publish_messages(manager: &ServiceManager) -> Result<(), Box<dyn std::error::
         let offset = manager.publish(message)?;
         println!("   ✓ Published to '{}': offset {}", topic, offset);
     }
+
+    Ok(())
+}
+
+/// Process messages through the request pipeline
+fn process_requests() -> Result<(), Box<dyn std::error::Error>> {
+    let service = BrokerService::new(BrokerConfigBuilder::new().port(8080).build()?)?;
+
+    let requests = vec![
+        ("user.events", "Process request #1"),
+        ("system.alerts", "Process request #2"),
+    ];
+
+    for (topic, content) in requests {
+        let message = Message::text(topic, content);
+        let process_result: RequestProcessingResult = process_request(message, &service)?;
+        println!("   ✓ Processed '{}': offset {}", topic, process_result.offset);
+    }
+
+    // Error case: empty topic is rejected
+    let bad_message = Message::text("", "No topic");
+    let err = process_request(bad_message, &service).expect_err("empty topic should fail");
+    println!("   ✓ Rejected invalid request: {}", err);
 
     Ok(())
 }

@@ -13,6 +13,10 @@ use crate::{Broker, Message};
 use std::sync::Arc;
 use std::time::Duration;
 
+// ============= //
+// BrokerService //
+// ============= //
+
 /// Complete broker service with managed lifecycle
 pub struct BrokerService {
     broker: Arc<Broker>,
@@ -76,6 +80,10 @@ impl BrokerService {
     }
 }
 
+// ==============  //
+// ServiceManager  //
+// ==============  //
+
 /// Service manager with cascading cleanup
 pub struct ServiceManager {
     broker_service: Option<BrokerService>,
@@ -131,7 +139,10 @@ impl Drop for ServiceManager {
 
 /// Request processing pipeline demonstrating block expressions
 /// Not used
-pub fn process_request(message: Message, service: &BrokerService) -> Result<ProcessingResult> {
+pub fn process_request(
+    message: Message,
+    service: &BrokerService,
+) -> Result<RequestProcessingResult> {
     // Block expression for validation
     let validated = {
         if message.topic.is_empty() {
@@ -152,15 +163,19 @@ pub fn process_request(message: Message, service: &BrokerService) -> Result<Proc
         result
     };
 
-    Ok(ProcessingResult {
+    Ok(RequestProcessingResult {
         offset,
         processed_at: std::time::Instant::now(),
     })
 }
 
+// ======================= //
+// RequestProcessingResult //
+// ======================= //
+
 /// Result of message processing
 #[derive(Debug)]
-pub struct ProcessingResult {
+pub struct RequestProcessingResult {
     pub offset: u64,
     pub processed_at: std::time::Instant,
 }
